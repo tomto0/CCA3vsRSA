@@ -47,6 +47,44 @@ def cca3_attack(c, e, n, decryption_oracle):
     recovered_m = (m_prime * r_inv) % n
     return recovered_m, r, c_prime, m_prime
 
+# Erweiterte Version für Aufgabe 35: Chosen Ciphertext Angriff nur mit sinnvollen (gültigen) Texten
+def cca3_attack_valid_only(c, e, n, decryption_oracle, maxAttemps=100000):
+    attempts = 0
+
+    while attempts < maxAttemps:
+        # Waehle zufaelliges r im Bereich [2, n-1]
+        r = random.randint(2, n - 1)
+        # Stelle sicher, dass r invertierbar modulo n ist (ggT(r, n) == 1)
+        if gcd(r, n) != 1:
+            continue
+
+        # Manipuliere den urspruenglichen Ciphertext: c' = c * r^e mod n
+        c_prime = (c * pow(r, e, n)) % n
+
+        # Frage das Orakel mit c' – das gibt m' = m * r mod n oder None zurück
+        m_prime = decryption_oracle(c_prime)
+
+        # Wenn das Orakel nichts zurueckgibt (ungueltiger Text), naechster Versuch
+        if m_prime is None:
+            attempts += 1
+            continue
+
+        try:
+            # Rekonstruiere m = m' * r⁻¹ mod n
+            recovered = (m_prime * inverse(r, n)) % n
+            decoded = long_to_bytes(recovered).decode('utf-8')
+
+            return decoded, attempts + 1
+
+        except:
+            # Wenn Umwandlung in UTF-8 fehlschlaegt: versuche erneut
+            attempts += 1
+            continue
+
+    # Kein gueltiger Text innerhalb der max. Versuche gefunden
+    return None, attempts
+
+
 # Miller-Rabin-Primalitaetstest
 def is_probable_prime(n, k=10):
     if n < 2:
@@ -58,11 +96,9 @@ def is_probable_prime(n, k=10):
     return True
 
 def verify_primes(p, q):
-    p_prime = is_probable_prime(p)
-    q_prime = is_probable_prime(q)
-    print("🔍 Primalitätstest:")
-    print(f"p ist {'eine Primzahl' if p_prime else 'keine Primzahl'}")
-    print(f"q ist {'eine Primzahl' if q_prime else 'keine Primzahl'}\n")
+    print("Primalitätstest:")
+    print(f"p ist {'eine Primzahl' if is_probable_prime(p) else 'keine Primzahl'}")
+    print(f"q ist {'eine Primzahl' if is_probable_prime(q) else 'keine Primzahl'}\n")
 
 # Beispielnachricht
 message = "Hallo Alice"
@@ -81,7 +117,20 @@ cipher = rsa_encrypt(message_int, e, n)
 # Entschlüsselungsorakel definieren
 oracle = lambda c: rsa_decrypt(c, d, n)
 
-# Angriff
+# Eingeschränktes Orakel (gibt None zurück bei ungültigem Text)
+def oracle_text_only(c):
+    try:
+        m = rsa_decrypt(c, d, n)
+        _ = long_to_bytes(m).decode('utf-8')  # Gültigkeit prüfen
+        return m
+    except:
+        return None
+
+# -------------------------
+# Aufgabe 34: CCA3 Angriff
+# -------------------------
+print("Aufgabe 34 – Standard-CCA3:\n")
+
 recovered_int, r_used, manipulated_cipher, oracle_output = cca3_attack(cipher, e, n, oracle)
 recovered_msg = int_to_plaintext(recovered_int)
 
@@ -91,7 +140,7 @@ print(f"Public Key (e, n):\n  e = {e}\n  n = {n}\n")
 print(f"Private Key (d):\n  {d}\n")
 print(f"Primzahlen:\n  p = {p}\n  q = {q}\n")
 
-print("✉Nachricht & Konvertierung:")
+print("Nachricht & Konvertierung:")
 print(f"Plaintext: {message}")
 print(f"Numerische Repräsentation: {message_int}\n")
 
@@ -106,3 +155,16 @@ print(f"Oracle-Rückgabe (m * r mod n):\n  {oracle_output}\n")
 print("Wiederhergestellter Klartext:")
 print(f"Numerisch: {recovered_int}")
 print(f"Als Text: {recovered_msg}")
+
+# -------------------------
+# Aufgabe 35: mit gültigen Texten
+# -------------------------
+print("\n\n Aufgabe 35 – Erweiterter Angriff mit gültigen Texten:\n")
+
+recovered_valid_msg, attempts = cca3_attack_valid_only(cipher, e, n, oracle_text_only)
+
+if recovered_valid_msg:
+    print(f"Erfolgreich nach {attempts} Versuchen.")
+    print(f"Wiederhergestellter Text: {recovered_valid_msg}")
+else:
+    print(f"Kein gültiger Text gefunden nach {attempts} Versuchen.")

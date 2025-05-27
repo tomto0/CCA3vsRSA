@@ -81,7 +81,7 @@ cipher = rsa_encrypt(message_int, e, n)
 # Entschlüsselungsorakel definieren
 oracle = lambda c: rsa_decrypt(c, d, n)
 
-# Angriff ausführen
+# Angriff
 recovered_int, r_used, manipulated_cipher, oracle_output = cca3_attack(cipher, e, n, oracle)
 recovered_msg = int_to_plaintext(recovered_int)
 
